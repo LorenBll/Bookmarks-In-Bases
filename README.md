@@ -47,7 +47,7 @@ Adds Bases formula objects for the bookmarks of the current file.
 
 ## Requirements
 
-- Obsidian 1.9.0 or later (tested on 1.13.7).
+- Obsidian 1.13.7 or later (tested on 1.13.7).
 - Node.js 18 or later and npm for development.
 - The Bookmarks and Bases core plugins must be enabled for the formula function to resolve data.
 
@@ -121,7 +121,7 @@ This plugin exposes no user-facing settings. There are no configuration keys, no
 
 ## Compatibility
 
-- `minAppVersion` is `1.9.0` as declared in `manifest.json`.
+- `minAppVersion` is `1.13.7` as declared in `manifest.json`.
 - Developed and tested against Obsidian 1.13.7.
 - `isDesktopOnly` is `false`; the plugin does not use desktop-only APIs.
 

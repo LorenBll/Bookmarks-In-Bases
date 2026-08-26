@@ -1,0 +1,27 @@
+/* Bookmark Paths for Bases - link and highlight styles */
+
+.bookmark-path-link {
+	cursor: pointer;
+	text-decoration: none;
+	color: var(--link-color);
+}
+
+.bookmark-path-link:hover {
+	text-decoration: none;
+	color: var(--link-color-hover, var(--link-color));
+}
+
+/* Highlight bookmark in Bookmarks view as if hovered/selected */
+.bookmark-highlight,
+.tree-item-self.bookmark-highlight,
+.tree-item.bookmark-highlight > .tree-item-self {
+	background-color: var(--nav-item-background-hover) !important;
+	/* fallback for themes without nav var */
+	background: var(--background-modifier-hover) !important;
+	border-radius: var(--radius-s);
+}
+
+.tree-item-self.bookmark-highlight.is-active,
+.tree-item.bookmark-highlight > .tree-item-self.is-active {
+	background-color: var(--nav-item-background-selected) !important;
+}

@@ -1,0 +1,10 @@
+{
+	"id": "bookmarks-in-bases",
+	"name": "Bookmarks-In-Bases",
+	"version": "0.1.0",
+	"minAppVersion": "1.9.0",
+	"description": "Adds Bases formula objects for bookmarks: file.bookmarks, file.hasBookmarks(), bookmark.path() and bookmark.folder().",
+	"author": "LorenBll",
+	"authorUrl": "https://github.com/LorenBll",
+	"isDesktopOnly": false
+}

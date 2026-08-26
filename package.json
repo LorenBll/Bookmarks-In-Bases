@@ -1,0 +1,30 @@
+{
+    "name":  "bookmarks-in-bases",
+    "version":  "0.1.0",
+    "description":  "Adds Bases formula objects for bookmarks: file.bookmarks, file.hasBookmarks(), bookmark.path() and bookmark.folder().",
+    "main":  "main.js",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "node esbuild.config.mjs",
+                    "build":  "tsc -noEmit -skipLibCheck \u0026\u0026 node esbuild.config.mjs production",
+                    "version":  "node version-bump.mjs \u0026\u0026 git add manifest.json versions.json",
+                    "lint":  "eslint ."
+                },
+    "keywords":  [
+
+                 ],
+    "license":  "0-BSD",
+    "author":  "LorenBll",
+    "devDependencies":  {
+                            "@eslint/js":  "^9.39.4",
+                            "@types/node":  "^22.15.17",
+                            "esbuild":  "0.25.5",
+                            "eslint":  "^9.39.4",
+                            "eslint-plugin-obsidianmd":  "^0.4.0",
+                            "globals":  "^17.6.0",
+                            "jiti":  "^2.6.1",
+                            "obsidian":  "latest",
+                            "typescript":  "^5.8.3",
+                            "typescript-eslint":  "^8.59.1"
+                        }
+}

@@ -10,16 +10,12 @@ import { Plugin, TFile, StringValue, ListValue, FileValue, Value, NullValue, Boo
  *     bookmark.path() -> full escaped path (groups + bookmark, "/" without spaces, "/" inside title escaped as "//")
  *     bookmark.folder() -> immediate parent folder (escaped) or null if none
  *
- * Legacy:
- *
- *     file.bookmark_paths() -> list of full paths (kept for compat)
- *
  * Each bookmark item renders as a clickable link that highlights the
  * corresponding bookmark in the Bookmarks view as if hovered/selected.
  * The link has no underline and no tooltip, and clicking does not
  * highlight the Bases cell.
  *
- * The function only considers bookmarks whose target is a vault file.
+ * The plugin only considers bookmarks whose target is a vault file.
  *
  * NOTE:
  * Obsidian's bookmark plugin API is currently not officially documented.
@@ -42,6 +38,10 @@ interface BookmarkGroup {
 
 type BookmarkNode = BookmarkItem | BookmarkGroup;
 
+interface BookmarkHighlighter {
+	highlightBookmark(escapedPath: string, filePath: string): Promise<void>;
+}
+
 /**
  * Bookmark value for Bases.
  * Display is the final segment (bookmark title), but holds full path and folder.
@@ -54,7 +54,7 @@ class BookmarkValue extends Value {
 		private _fullPath: string,
 		private _folder: string | null,
 		private _finalTitle: string,
-		private _plugin: any,
+		private _plugin: BookmarkHighlighter,
 	) {
 		super();
 	}
@@ -103,13 +103,24 @@ class BookmarkValue extends Value {
 			e.preventDefault();
 			e.stopPropagation();
 			(e as MouseEvent).stopImmediatePropagation?.();
-			(link as HTMLElement).blur();
+			link.blur();
 			if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 			const basesCell = el.closest('.bases-td, .bases-cell, td, [data-type="bases"]');
-			if (basesCell instanceof HTMLElement) (basesCell as HTMLElement).blur?.();
+			if (basesCell instanceof HTMLElement) basesCell.blur();
 			void this._plugin.highlightBookmark(this._fullPath, this._file.path);
 		});
 	}
+}
+
+interface BasesInstanceFunc {
+	name: string;
+	docString: () => string;
+	params: unknown[];
+	applyWithContext: (ctx: unknown, ...args: unknown[]) => unknown;
+}
+
+interface BasesRegistry {
+	registerInstanceFunc?: (valueType: unknown, func: BasesInstanceFunc) => void;
 }
 
 export default class BookmarkPathsPlugin extends Plugin {
@@ -130,117 +141,84 @@ export default class BookmarkPathsPlugin extends Plugin {
 	 * Bookmark ops: bookmark.path() / bookmark.fullPath() and bookmark.folder() / bookmark.parent()
 	 */
 	private registerBookmarkFormulaFunction() {
-		const anyPlugin = this as unknown as {
-			registerGlobalFunc?: (func: {
-				name: string;
-				docString: () => string;
-				params: unknown[];
-				applyWithContext: (ctx: unknown, ...args: unknown[]) => unknown;
-			}) => void;
-			registerInstanceFunc?: (
-				valueType: unknown,
-				func: {
-					name: string;
-					docString: () => string;
-					params: unknown[];
-					applyWithContext: (ctx: unknown, ...args: unknown[]) => unknown;
-				},
-			) => void;
-		};
-
-		let registered = false;
-
-		// --- file.bookmarks -> List<BookmarkValue> (final segment display) ---
-		if (typeof anyPlugin.registerInstanceFunc === "function") {
-			try {
-				anyPlugin.registerInstanceFunc(FileValue, {
-					name: "bookmarks",
-					docString: () => "Returns the list of bookmarks for the file (final segments).",
-					params: [{ name: "self", type: [FileValue], optional: false }],
-					applyWithContext: (ctx: unknown, self: unknown) => {
-						const file = this.getFileFromValue(self) ?? this.getFileFromFormulaContext(ctx);
-						if (!file) return new ListValue([]);
-						const values = this.getBookmarkValues(file);
-						return new ListValue(values);
-					},
-				} as unknown as Parameters<NonNullable<typeof anyPlugin.registerInstanceFunc>>[1]);
-				console.log("[Bookmarks-In-Bases] Registered file.bookmarks via registerInstanceFunc");
-				registered = true;
-			} catch (error) {
-				console.error("[Bookmarks-In-Bases] registerInstanceFunc file.bookmarks failed:", error);
-			}
-
-			// --- file.hasBookmarks() -> boolean ---
-			try {
-				anyPlugin.registerInstanceFunc(FileValue, {
-					name: "hasBookmarks",
-					docString: () => "Returns true if the file has any bookmarks.",
-					params: [{ name: "self", type: [FileValue], optional: false }],
-					applyWithContext: (ctx: unknown, self: unknown) => {
-						const file = this.getFileFromValue(self) ?? this.getFileFromFormulaContext(ctx);
-						if (!file) return new BooleanValue(false);
-						const has = this.getBookmarkValues(file).length > 0;
-						return new BooleanValue(has);
-					},
-				} as unknown as Parameters<NonNullable<typeof anyPlugin.registerInstanceFunc>>[1]);
-				console.log("[Bookmarks-In-Bases] Registered file.hasBookmarks() via registerInstanceFunc");
-				registered = true;
-			} catch (error) {
-				console.error("[Bookmarks-In-Bases] registerInstanceFunc file.hasBookmarks failed:", error);
-			}
-
-			// --- bookmark.path() / bookmark.fullPath() -> full escaped path ---
-			try {
-				const pathDoc = () => "Returns the full escaped path of the bookmark (groups + bookmark, / without spaces, // for / inside title).";
-				const pathImpl = (ctx: unknown, self: unknown) => {
-					const bv = self as BookmarkValue;
-					if (bv instanceof BookmarkValue) return new StringValue(bv.fullPath);
-					return new StringValue(String(self ?? ""));
-				};
-				const folderDoc = () => "Returns the immediate parent folder of the bookmark (escaped), or null if none.";
-				const folderImpl = (ctx: unknown, self: unknown) => {
-					const bv = self as BookmarkValue;
-					if (bv instanceof BookmarkValue) {
-						if (bv.folder === null) return (NullValue as unknown as { value: Value }).value ?? new (NullValue as unknown as new () => Value)();
-						return new StringValue(bv.folder);
-					}
-					return (NullValue as unknown as { value: Value }).value ?? new (NullValue as unknown as new () => Value)();
-				};
-
-				// Register under several aliases for ergonomics
-				for (const name of ["path", "fullPath", "full_path"]) {
-					anyPlugin.registerInstanceFunc(BookmarkValue as unknown as typeof Value, {
-						name,
-						docString: pathDoc,
-						params: [{ name: "self", type: [BookmarkValue as unknown as typeof Value], optional: false }],
-						applyWithContext: pathImpl,
-					} as unknown as Parameters<NonNullable<typeof anyPlugin.registerInstanceFunc>>[1]);
-				}
-				for (const name of ["folder", "parent", "parentFolder"]) {
-					anyPlugin.registerInstanceFunc(BookmarkValue as unknown as typeof Value, {
-						name,
-						docString: folderDoc,
-						params: [{ name: "self", type: [BookmarkValue as unknown as typeof Value], optional: false }],
-						applyWithContext: folderImpl,
-					} as unknown as Parameters<NonNullable<typeof anyPlugin.registerInstanceFunc>>[1]);
-				}
-				console.log("[Bookmarks-In-Bases] Registered bookmark.path()/folder() via registerInstanceFunc");
-			} catch (error) {
-				console.error("[Bookmarks-In-Bases] bookmark instance funcs failed:", error);
-			}
+		const registry = this as unknown as BasesRegistry;
+		const register = registry.registerInstanceFunc;
+		if (typeof register !== "function") {
+			return;
 		}
 
-		if (!registered) {
-			console.warn("[Bookmarks-In-Bases] Bases formula registry not available, file.bookmarks not registered");
+		// --- file.bookmarks -> List<BookmarkValue> (final segment display) ---
+		try {
+			register(FileValue, {
+				name: "bookmarks",
+				docString: () => "Returns the list of bookmarks for the file (final segments).",
+				params: [{ name: "self", type: [FileValue], optional: false }],
+				applyWithContext: (ctx: unknown, self: unknown) => {
+					const file = this.getFileFromValue(self) ?? this.getFileFromFormulaContext(ctx);
+					if (!file) return new ListValue([]);
+					return new ListValue(this.getBookmarkValues(file));
+				},
+			});
+		} catch {
+			// ignore
+		}
+
+		// --- file.hasBookmarks() -> boolean ---
+		try {
+			register(FileValue, {
+				name: "hasBookmarks",
+				docString: () => "Returns true if the file has any bookmarks.",
+				params: [{ name: "self", type: [FileValue], optional: false }],
+				applyWithContext: (ctx: unknown, self: unknown) => {
+					const file = this.getFileFromValue(self) ?? this.getFileFromFormulaContext(ctx);
+					if (!file) return new BooleanValue(false);
+					return new BooleanValue(this.getBookmarkValues(file).length > 0);
+				},
+			});
+		} catch {
+			// ignore
+		}
+
+		// --- bookmark.path() / bookmark.fullPath() / bookmark.full_path() -> full escaped path ---
+		try {
+			const pathFunc: BasesInstanceFunc = {
+				name: "path",
+				docString: () => "Returns the full escaped path of the bookmark (groups + bookmark, / without spaces, // for / inside title).",
+				params: [{ name: "self", type: [BookmarkValue], optional: false }],
+				applyWithContext: (_ctx: unknown, self: unknown) => {
+					if (self instanceof BookmarkValue) return new StringValue(self.fullPath);
+					return new StringValue("");
+				},
+			};
+			for (const name of ["path", "fullPath", "full_path"]) {
+				register(BookmarkValue, { ...pathFunc, name });
+			}
+		} catch {
+			// ignore
+		}
+
+		// --- bookmark.folder() / bookmark.parent() / bookmark.parentFolder() -> immediate parent folder or null ---
+		try {
+			const folderFunc: BasesInstanceFunc = {
+				name: "folder",
+				docString: () => "Returns the immediate parent folder of the bookmark (escaped), or null if none.",
+				params: [{ name: "self", type: [BookmarkValue], optional: false }],
+				applyWithContext: (_ctx: unknown, self: unknown) => {
+					if (self instanceof BookmarkValue) {
+						if (self.folder === null) return NullValue.value;
+						return new StringValue(self.folder);
+					}
+					return NullValue.value;
+				},
+			};
+			for (const name of ["folder", "parent", "parentFolder"]) {
+				register(BookmarkValue, { ...folderFunc, name });
+			}
+		} catch {
+			// ignore
 		}
 	}
 
-	/**
-	 * Create a StringValue that renders as a clickable link to highlight the bookmark.
-	 * The link has no underline and no tooltip, keeps the previous link colour,
-	 * and clicking highlights only the final file/folder bookmark in the Bookmarks view
-	 * as if hovered/selected without highlighting the Bases cell.
-	 
 	/**
 	 * Highlight the bookmark for filePath inside group escapedPath in the Bookmarks view.
 	 * Decodes escaped slashes (//) and tries to find the matching DOM node.
@@ -262,7 +240,6 @@ export default class BookmarkPathsPlugin extends Plugin {
 			}
 		}
 		if (!leaf) {
-			console.warn("[Bookmarks-In-Bases] Bookmarks view not found");
 			return;
 		}
 		await this.app.workspace.revealLeaf(leaf);
@@ -270,27 +247,24 @@ export default class BookmarkPathsPlugin extends Plugin {
 		window.setTimeout(() => {
 			try {
 				const view = (leaf as unknown as { view?: { containerEl?: HTMLElement } }).view;
-				const container: HTMLElement | null = view?.containerEl ?? (leaf as unknown as { containerEl?: HTMLElement }).containerEl ?? document.querySelector('[data-type="bookmarks"]') as HTMLElement | null;
+				const container =
+					view?.containerEl ??
+					(leaf as unknown as { containerEl?: HTMLElement }).containerEl ??
+					document.querySelector<HTMLElement>('[data-type="bookmarks"]');
 				if (!container) return;
 
-				// Find file bookmark elements via [data-path] or similar
+				// Find file bookmark elements via [data-path]
 				const candidates = Array.from(container.querySelectorAll<HTMLElement>('[data-path]')).filter(
 					(el) => el.getAttribute("data-path") === filePath,
 				);
 
-				// If no data-path candidates, fallback to searching tree items by file name
 				let target: HTMLElement | null = null;
 
-				if (candidates.length === 0) {
-					// Fallback: search all tree items for file path text
-					const all = Array.from(container.querySelectorAll<HTMLElement>('.tree-item, .nav-file, [data-type="bookmarks"] *'));
-					// Try to find element whose text matches file basename
-					target = null;
-				} else if (candidates.length === 1) {
+				if (candidates.length === 1) {
 					target = candidates[0] ?? null;
-				} else {
-					// Multiple bookmarks for same file in different groups: disambiguate by parent group path
-					// targetGroups includes final bookmark title, while collectBookmarkGroups returns only parent groups
+				} else if (candidates.length > 1) {
+					// Multiple bookmarks for same file in different groups: disambiguate by parent group path.
+					// targetGroups includes the final bookmark title; collectBookmarkGroups returns only parent groups.
 					const parentTarget = targetGroups.slice(0, -1);
 					for (const cand of candidates) {
 						const groups = this.collectBookmarkGroups(cand, container);
@@ -302,26 +276,22 @@ export default class BookmarkPathsPlugin extends Plugin {
 					if (!target) target = candidates[0] ?? null;
 				}
 
-				if (target) {
-					target.scrollIntoView({ behavior: "smooth", block: "center" });
-					// Only the final file/folder bookmark is highlighted, not the whole group path
-					const highlightEl = (target.closest('.tree-item') as HTMLElement | null) ?? target;
-					// Use native hover/selected styling: add is-active to the self row
-					const selfEl = highlightEl.querySelector('.tree-item-self') as HTMLElement | null;
-					const toHighlight = selfEl ?? highlightEl;
-					toHighlight.addClass("bookmark-highlight");
-					// Also add native selected-like class for accurate hover/selected look
-					toHighlight.addClass("is-active");
-					window.setTimeout(() => {
-						toHighlight.removeClass("bookmark-highlight");
-						toHighlight.removeClass("is-active");
-					}, 1800);
-				} else {
-					// Only final bookmark should be highlighted; do not highlight group or container
-					if (escapedPath) console.log(`[Bookmarks-In-Bases] Bookmark not found for highlight ${escapedPath} → ${filePath}`);
-				}
-			} catch (error) {
-				console.error("[Bookmarks-In-Bases] highlight failed", error);
+				if (!target) return;
+
+				target.scrollIntoView({ behavior: "smooth", block: "center" });
+				// Only the final file/folder bookmark is highlighted, not the whole group path.
+				// Use native hover/selected styling: add is-active to the self row.
+				const highlightEl = target.closest<HTMLElement>('.tree-item') ?? target;
+				const selfEl = highlightEl.querySelector<HTMLElement>('.tree-item-self');
+				const toHighlight = selfEl ?? highlightEl;
+				toHighlight.addClass("bookmark-highlight");
+				toHighlight.addClass("is-active");
+				window.setTimeout(() => {
+					toHighlight.removeClass("bookmark-highlight");
+					toHighlight.removeClass("is-active");
+				}, 1800);
+			} catch {
+				// ignore
 			}
 		}, 180);
 	}
@@ -350,13 +320,13 @@ export default class BookmarkPathsPlugin extends Plugin {
 
 	private collectBookmarkGroups(el: HTMLElement, container: HTMLElement): string[] {
 		const groups: string[] = [];
-		let cur: HTMLElement | null = el.closest('.tree-item') as HTMLElement | null;
-		// Walk up through parent tree-items to collect group titles
-		// Obsidian bookmarks DOM: each group is .tree-item with .tree-item-self > .tree-item-inner
+		let cur: HTMLElement | null = el.closest<HTMLElement>('.tree-item');
+		// Walk up through parent tree-items to collect group titles.
+		// Obsidian bookmarks DOM: each group is a .tree-item with .tree-item-self > .tree-item-inner.
 		while (cur && container.contains(cur)) {
-			const parentGroup = cur.parentElement?.closest('.tree-item') as HTMLElement | null;
+			const parentGroup = cur.parentElement?.closest<HTMLElement>('.tree-item') ?? null;
 			if (!parentGroup) break;
-			const titleEl = parentGroup.querySelector(':scope > .tree-item-self .tree-item-inner') as HTMLElement | null;
+			const titleEl = parentGroup.querySelector<HTMLElement>(':scope > .tree-item-self .tree-item-inner');
 			if (titleEl) {
 				const title = titleEl.textContent?.trim() ?? "";
 				if (title) groups.unshift(title);
@@ -383,9 +353,12 @@ export default class BookmarkPathsPlugin extends Plugin {
 		const v = value as Record<string, unknown>;
 
 		// Direct wrapped file properties
-		if ((v["file"] as unknown) instanceof TFile) return v["file"] as TFile;
-		if ((v["data"] as unknown) instanceof TFile) return v["data"] as TFile;
-		if ((v["_file"] as unknown) instanceof TFile) return v["_file"] as TFile;
+		const wrappedFile = v["file"];
+		if (wrappedFile instanceof TFile) return wrappedFile;
+		const wrappedData = v["data"];
+		if (wrappedData instanceof TFile) return wrappedData;
+		const wrappedUnderscore = v["_file"];
+		if (wrappedUnderscore instanceof TFile) return wrappedUnderscore;
 
 		// Path strings - try common keys
 		const pathCandidates: unknown[] = [
@@ -413,7 +386,7 @@ export default class BookmarkPathsPlugin extends Plugin {
 				}
 			}
 			for (const key of Object.getOwnPropertyNames(v)) {
-				const val = (v as Record<string, unknown>)[key];
+				const val = v[key];
 				if (val instanceof TFile) return val;
 			}
 		} catch {
@@ -438,9 +411,8 @@ export default class BookmarkPathsPlugin extends Plugin {
 		const c = ctx as Record<string, unknown>;
 
 		// Modern BasesEntry: ctx.file is TFile
-		if (c["file"] instanceof TFile) {
-			return c["file"] as TFile;
-		}
+		const direct = c["file"];
+		if (direct instanceof TFile) return direct;
 
 		const candidates = [
 			(c as { file?: unknown }).file,
@@ -470,18 +442,13 @@ export default class BookmarkPathsPlugin extends Plugin {
 	/**
 	 * Get the internal Bookmarks core plugin.
 	 */
-	private getBookmarksPlugin(): unknown | null {
+	private getBookmarksPlugin(): unknown {
 		const internalPlugins = (this.app as unknown as { internalPlugins?: { getPluginById?: (id: string) => unknown } }).internalPlugins;
-		if (!internalPlugins) {
-			return null;
-		}
-		const plugin = internalPlugins.getPluginById?.("bookmarks") as
-			| { instance?: unknown; _instance?: unknown }
-			| undefined;
-		if (!plugin) {
-			return null;
-		}
-		return (plugin as { instance?: unknown }).instance ?? (plugin as { _instance?: unknown })._instance ?? null;
+		if (!internalPlugins) return null;
+		const plugin = internalPlugins.getPluginById?.("bookmarks");
+		if (!plugin) return null;
+		const record = plugin as { instance?: unknown; _instance?: unknown };
+		return record.instance ?? record._instance ?? null;
 	}
 
 	/**
@@ -495,9 +462,9 @@ export default class BookmarkPathsPlugin extends Plugin {
 		if (!bookmarks) return [];
 
 		const rootItems: BookmarkNode[] =
-			(bookmarks as { items?: BookmarkNode[] }).items ??
-			(bookmarks as { _items?: BookmarkNode[] })._items ??
-			(bookmarks as { instance?: { items?: BookmarkNode[] } }).instance?.items ??
+			bookmarks.items ??
+			bookmarks._items ??
+			bookmarks.instance?.items ??
 			[];
 
 		if (!Array.isArray(rootItems)) return [];
@@ -548,5 +515,4 @@ export default class BookmarkPathsPlugin extends Plugin {
 			}
 		}
 	}
-
 }

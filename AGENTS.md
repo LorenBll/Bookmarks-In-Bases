@@ -75,6 +75,7 @@ npm run build
     - Optional: `author`, `authorUrl`, `fundingUrl` (string or map)
 - Never change `id` after release. Treat it as stable API.
 - Keep `minAppVersion` accurate when using newer APIs.
+- State the `version` without a leading `v` prefix, e.g. `1.0.0` not `v1.0.0`.
 - Canonical requirements are coded here: https://github.com/obsidianmd/obsidian-releases/blob/master/.github/workflows/validate-plugin-entry.yml
 
 ## Testing

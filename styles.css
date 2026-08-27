@@ -1,4 +1,4 @@
-/* Bookmark Paths for Bases - link and highlight styles */
+/* Bookmarks-In-Bases - link and highlight styles */
 
 .bookmark-path-link {
 	cursor: pointer;
@@ -11,17 +11,15 @@
 	color: var(--link-color-hover, var(--link-color));
 }
 
-/* Highlight bookmark in Bookmarks view as if hovered/selected */
-.bookmark-highlight,
-.tree-item-self.bookmark-highlight,
-.tree-item.bookmark-highlight > .tree-item-self {
-	background-color: var(--nav-item-background-hover) !important;
-	/* fallback for themes without nav var */
-	background: var(--background-modifier-hover) !important;
+/* Highlight bookmark in Bookmarks view as if hovered/selected.
+   Scoped to the bookmarks view and combined with the .bookmark-highlight
+   class so it overrides native .tree-item-self styles by specificity,
+   without !important. */
+.workspace-leaf-content[data-type="bookmarks"] .tree-item-self.bookmark-highlight {
+	background-color: var(--nav-item-background-hover);
 	border-radius: var(--radius-s);
 }
 
-.tree-item-self.bookmark-highlight.is-active,
-.tree-item.bookmark-highlight > .tree-item-self.is-active {
-	background-color: var(--nav-item-background-selected) !important;
+.workspace-leaf-content[data-type="bookmarks"] .tree-item-self.bookmark-highlight.is-active {
+	background-color: var(--nav-item-background-selected);
 }

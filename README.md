@@ -133,7 +133,7 @@ Copyright (C) 2020-2026 by Dynalist Inc.
 
 ## Support
 
-Report issues at https://github.com/LorenBll/Bookmarks-In-Bases/issues (or the GitHub repository associated with this plugin).
+Report issues at https://github.com/LorenBll/Bookmarks-In-Bases/issues.
 
 ## Author
 

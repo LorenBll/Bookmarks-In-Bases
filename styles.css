@@ -14,12 +14,15 @@
 /* Highlight bookmark in Bookmarks view as if hovered/selected.
    Scoped to the bookmarks view and combined with the .bookmark-highlight
    class so it overrides native .tree-item-self styles by specificity,
-   without !important. */
-.workspace-leaf-content[data-type="bookmarks"] .tree-item-self.bookmark-highlight {
+   without !important. Fallback selector without workspace wrapper covers
+   DOM variations across Obsidian versions. */
+.workspace-leaf-content[data-type="bookmarks"] .tree-item-self.bookmark-highlight,
+.tree-item-self.bookmark-highlight {
 	background-color: var(--nav-item-background-hover);
 	border-radius: var(--radius-s);
 }
 
-.workspace-leaf-content[data-type="bookmarks"] .tree-item-self.bookmark-highlight.is-active {
+.workspace-leaf-content[data-type="bookmarks"] .tree-item-self.bookmark-highlight.is-active,
+.tree-item-self.bookmark-highlight.is-active {
 	background-color: var(--nav-item-background-selected);
 }

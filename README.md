@@ -35,9 +35,9 @@ Adds Bases formula objects for the bookmarks of the current file.
 - Handles nested bookmark groups recursively and joins titles with `/` without spaces, escaping `/` inside titles as `//`.
   - Why: Vaults use nested bookmark groups to model hierarchies and may contain `/` in titles.
   - How: The plugin walks the Bookmarks core plugin tree (`items` / `_items`) and for each matching file bookmark builds `fullPath` from `[...groupPath, title].map(s=>s.replaceAll("/","//")).join("/")`.
-- Each bookmark in the returned list renders as a clickable link (final segment, no underline, no tooltip, link colour `var(--link-color)`). Clicking reveals the **Bookmarks** view and highlights only the final file/folder bookmark as if hovered/selected (no Bases cell highlight).
-  - Why: Make the bookmark actionable and provide visual feedback in the bookmarks hierarchy.
-  - How: `BookmarkValue.renderTo` renders an `<a class="bookmark-path-link">` that calls `highlightBookmark`; the Bookmarks view is revealed and the matching `[data-path]` element's `.tree-item-self` is flashed with `bookmark-highlight` + `is-active`. `mousedown`/`mouseup` are cancelled and the Bases cell is blurred to prevent border highlight.
+- Each bookmark in the returned list renders as a clickable link (final segment, no underline, no tooltip, link colour `var(--link-color)`). Clicking reveals the **Bookmarks** view, opens any closed bookmark folder (group) containing the bookmark, scrolls the target into view and highlights only the final file/folder bookmark as if hovered/selected (no Bases cell highlight).
+  - Why: Make the bookmark actionable and provide visual feedback in the bookmarks hierarchy, even when the bookmark is inside a closed/collapsed bookmark folder.
+  - How: `BookmarkValue.renderTo` renders an `<a class="bookmark-path-link">` that calls `highlightBookmark`; the Bookmarks view is revealed, the full folder chain for the bookmark's escaped path is opened (each `is-collapsed` ancestor group is expanded via click and `is-collapsed`/`hidden` removal), the matching bookmark's `.tree-item-self` (resolved via `view.itemDoms` WeakMap, `[data-path]`, or `.tree-item-inner` text fallback) is scrolled into view and flashed with `bookmark-highlight` + `is-active` (cleared after 2.2 s, previous highlights are removed, retries if the view is still rendering). `mousedown`/`mouseup` are cancelled and the Bases cell is blurred to prevent border highlight.
 - Considers only vault-file bookmarks. Bookmarks of type `file` whose `path` equals the current file path are evaluated; other bookmark types are ignored.
   - Why: Prevent unrelated bookmark types from producing false matches.
   - How: No configuration is required; the plugin filters internally.
@@ -86,7 +86,7 @@ Behavior:
 - `file.hasBookmarks()` returns `true` if the file has at least one bookmark, `false` otherwise (boolean, not list).
 - `bookmark.path()` / `bookmark.fullPath()` returns the full escaped path including the final bookmark title (e.g. `Projects/Obsidian/Bases`). Joined with `/` without spaces.
 - `bookmark.folder()` / `bookmark.parent()` returns the immediate parent folder (single escaped segment) or `null` if the bookmark is at the root (no folder above it). Use `value.folder() ?? ""` to coerce to string.
-- Click any bookmark item to reveal the **Bookmarks** view and flash-highlight only the final file/folder bookmark as `is-active`/`bookmark-highlight` (hover/selected look). The Bases cell is not highlighted, and links have no underline or tooltip.
+- Click any bookmark item to reveal the **Bookmarks** view; if the bookmark is inside a closed bookmark folder (group) that is collapsed, the folder (and any nested parent folders) is opened first, then the bookmark is scrolled into view and flash-highlighted as `is-active`/`bookmark-highlight` (hover/selected look, cleared after 2.2 s). The Bases cell is not highlighted, and links have no underline or tooltip.
 
 Limitations:
 

@@ -1,6 +1,6 @@
 {
     "name":  "bookmarks-in-bases",
-    "version":  "1.0.1",
+    "version":  "1.0.2",
     "description":  "Adds Bases formula objects for bookmarks: file.bookmarks, file.hasBookmarks(), bookmark.path() and bookmark.folder().",
     "main":  "main.js",
     "type":  "module",

@@ -524,14 +524,6 @@ export default class BookmarkPathsPlugin extends Plugin {
 							// ignore
 						}
 					}
-					// Ensure CSS class is also removed for immediate visual update
-					grp.classList.remove("is-collapsed");
-					(grp as unknown as { removeClass?: (c: string) => void }).removeClass?.("is-collapsed");
-					const children = grp.querySelector<HTMLElement>(".tree-item-children");
-					if (children) {
-						children.hidden = false;
-						children.removeAttribute("style");
-					}
 					window.setTimeout(() => expandNext(idx + 1), 160);
 				};
 				expandNext(0);
@@ -591,13 +583,6 @@ export default class BookmarkPathsPlugin extends Plugin {
 						// ignore
 					}
 				}
-				found.classList.remove("is-collapsed");
-				(found as unknown as { removeClass?: (c: string) => void }).removeClass?.("is-collapsed");
-				const children = found.querySelector<HTMLElement>(".tree-item-children");
-				if (children) {
-					children.hidden = false;
-					children.removeAttribute("style");
-				}
 				expanded++;
 				const nextChildren = found.querySelector<HTMLElement>(".tree-item-children");
 				if (nextChildren) searchRoot = nextChildren;
@@ -655,13 +640,6 @@ export default class BookmarkPathsPlugin extends Plugin {
 					} catch {
 						// ignore
 					}
-				}
-				grp.classList.remove("is-collapsed");
-				(grp as unknown as { removeClass?: (c: string) => void }).removeClass?.("is-collapsed");
-				const children = grp.querySelector<HTMLElement>(".tree-item-children");
-				if (children) {
-					children.hidden = false;
-					children.removeAttribute("style");
 				}
 				expanded++;
 			}

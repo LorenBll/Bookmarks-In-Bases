@@ -125,13 +125,13 @@ interface BasesRegistry {
 
 export default class BookmarkPathsPlugin extends Plugin {
 	async onload() {
-		// Bases may not be ready at onload. Defer registration until layout is ready
-		// and also try immediately for cases where it is already available.
+		// Bases is not ready at onload, so defer registration until the layout is
+		// ready. onLayoutReady runs the callback immediately when the layout is
+		// already loaded (for example on plugin reload), so no separate eager
+		// registration is needed.
 		this.app.workspace.onLayoutReady(() => {
 			this.registerBookmarkFormulaFunction();
 		});
-		// In case onLayoutReady already fired (reload), also try now
-		this.registerBookmarkFormulaFunction();
 	}
 
 	/**

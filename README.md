@@ -11,7 +11,7 @@ Adds Bases formula objects for the bookmarks of the current file.
 - [Build](#build)
 - [Configuration](#configuration)
 - [Compatibility](#compatibility)
-- [License](#license)
+- [Licence](#licence)
 - [Support](#support)
 - [Author](#author)
 
@@ -41,7 +41,7 @@ Adds Bases formula objects for the bookmarks of the current file.
 - Considers only vault-file bookmarks. Bookmarks of type `file` whose `path` equals the current file path are evaluated; other bookmark types are ignored.
   - Why: Prevent unrelated bookmark types from producing false matches.
   - How: No configuration is required; the plugin filters internally.
-- Depends on internal APIs (Bookmarks and Bases core plugins) with fallback probing. Logs a warning if either core plugin is unavailable or the Bases formula registry cannot be found.
+- Depends on internal APIs (Bookmarks and Bases core plugins) with fallback probing. Registration and formula calls fail silently (the list is empty) if either core plugin is unavailable or the Bases formula registry cannot be found.
   - Why: These APIs are not part of the public `obsidian.d.ts` typings and vary across Obsidian versions.
   - How: Enable the Bookmarks and Bases core plugins. No additional setup is required.
 
@@ -80,7 +80,7 @@ file.hasBookmarks()
 file.bookmarks.map(value.path()).contains("Projects/Obsidian/Bases")
 ```
 
-Behavior:
+Behaviour:
 
 - `file.bookmarks` returns `[]` if the file cannot be resolved, if the Bookmarks plugin is unavailable, or if the file has no file-type bookmarks. Otherwise returns a sorted list of `bookmark` objects; display is the final segment only (e.g. `Bases`), escaped with `//` inside titles.
 - `file.hasBookmarks()` returns `true` if the file has at least one bookmark, `false` otherwise (boolean, not list).
@@ -90,7 +90,7 @@ Behavior:
 
 Limitations:
 
-- Accesses internal Bookmarks/Bases data structures. A future Obsidian update may change these structures; the plugin logs a warning and returns `[]` or `null` if the structure is not found.
+- Accesses internal Bookmarks/Bases data structures. A future Obsidian update may change these structures; the plugin returns `[]` or `null` if the structure is not found.
 
 ## Build
 
@@ -117,7 +117,7 @@ Versioning: update `version` in `manifest.json` and `package.json`, then run `np
 
 ## Configuration
 
-This plugin exposes no user-facing settings. There are no configuration keys, no settings tab, and no persisted data. Behavior is fully determined by the current file and the vault's bookmark tree.
+This plugin exposes no user-facing settings. There are no configuration keys, no settings tab, and no persisted data. Behaviour is fully determined by the current file and the vault's bookmark tree.
 
 ## Compatibility
 
@@ -125,7 +125,7 @@ This plugin exposes no user-facing settings. There are no configuration keys, no
 - Developed and tested against Obsidian 1.13.7.
 - `isDesktopOnly` is `false`; the plugin does not use desktop-only APIs.
 
-## License
+## Licence
 
 0BSD. See [LICENSE](LICENSE).
 

@@ -1,6 +1,8 @@
-# Bookmarks-In-Bases
+# Bookmarks-in-Bases
 
 Adds Bases formula objects for the bookmarks of the current file.
+
+Developer documentation: [README-DEV.md](README-DEV.md).
 
 ## Table of Contents
 
@@ -17,57 +19,69 @@ Adds Bases formula objects for the bookmarks of the current file.
 
 ## Features
 
-- Exposes `file.bookmarks` as a Bases formula instance function. Returns a sorted, deduplicated list of `bookmark` objects for the file represented by the current Bases row. Each bookmark displays as its final segment only (e.g. `Bases` for path `Projects/Obsidian/Bases`). If a file is bookmarked in multiple groups, the list contains one object per bookmark.
-  - Why: Bases has no native way to filter or group by bookmark membership. This object enables bookmark-based views with per-bookmark operations.
-  - How: Use `file.bookmarks` in any Bases formula property. The function is called on the `file` value of the row and requires no arguments: `file.bookmarks`.
-- Each `bookmark` is a `Value` of type `bookmark`. Isolating an element (e.g. `file.bookmarks[0]` or `file.bookmarks.map(value)`) allows per-bookmark operations.
-  - Why: Enable filtering, grouping and display based on individual bookmarks.
-  - How: Use list operations like `map` or index access, then call bookmark methods on the isolated value.
-- `bookmark.path()` / `bookmark.fullPath()` returns the full escaped path (groups + bookmark title) joined with `/` without spaces. A `/` inside a title is escaped as `//`.
-  - Why: Provide the complete bookmark location for display or filtering.
-  - How: `file.bookmarks.map(value.path())` or `file.bookmarks[0].path()`.
-- `bookmark.folder()` / `bookmark.parent()` returns the immediate parent folder (single escaped segment) or `null` if the bookmark has no folder above it.
-  - Why: Allow grouping or filtering by immediate container without parsing the full path.
-  - How: `file.bookmarks.map(value.folder())`. Returns `null` for root bookmarks; use `value.folder() ?? ""` or `filter` to handle.
-- `file.hasBookmarks()` returns a `boolean` (`true` if the file has any bookmarks, `false` otherwise).
-  - Why: Quickly filter Bases views to only bookmarked files without inspecting the list.
-  - How: `file.hasBookmarks()` or `file.hasBookmarks() == true`. Use in Bases filter: `hasBookmarks()`.
-- Handles nested bookmark groups recursively and joins titles with `/` without spaces, escaping `/` inside titles as `//`.
-  - Why: Vaults use nested bookmark groups to model hierarchies and may contain `/` in titles.
-  - How: The plugin walks the Bookmarks core plugin tree (`items` / `_items`) and for each matching file bookmark builds `fullPath` from `[...groupPath, title].map(s=>s.replaceAll("/","//")).join("/")`.
-- Each bookmark in the returned list renders as a clickable link (final segment, no underline, no tooltip, link colour `var(--link-color)`). Clicking reveals the **Bookmarks** view, opens any closed bookmark folder (group) containing the bookmark, scrolls the target into view and highlights only the final file/folder bookmark as if hovered/selected (no Bases cell highlight).
-  - Why: Make the bookmark actionable and provide visual feedback in the bookmarks hierarchy, even when the bookmark is inside a closed/collapsed bookmark folder.
-  - How: `BookmarkValue.renderTo` renders an `<a class="bookmark-path-link">` that calls `highlightBookmark`; the Bookmarks view is revealed, the full folder chain for the bookmark's escaped path is opened (each `is-collapsed` ancestor group is expanded via click and `is-collapsed`/`hidden` removal), the matching bookmark's `.tree-item-self` (resolved via `view.itemDoms` WeakMap, `[data-path]`, or `.tree-item-inner` text fallback) is scrolled into view and flashed with `bookmark-highlight` + `is-active` (cleared after 2.2 s, previous highlights are removed, retries if the view is still rendering). `mousedown`/`mouseup` are cancelled and the Bases cell is blurred to prevent border highlight.
-- Considers only vault-file bookmarks. Bookmarks of type `file` whose `path` equals the current file path are evaluated; other bookmark types are ignored.
-  - Why: Prevent unrelated bookmark types from producing false matches.
-  - How: No configuration is required; the plugin filters internally.
-- Depends on internal APIs (Bookmarks and Bases core plugins) with fallback probing. Registration and formula calls fail silently (the list is empty) if either core plugin is unavailable or the Bases formula registry cannot be found.
-  - Why: These APIs are not part of the public `obsidian.d.ts` typings and vary across Obsidian versions.
-  - How: Enable the Bookmarks and Bases core plugins. No additional setup is required.
+- `file.bookmarks` exposes the bookmarks of the current Bases row as a list of values of type `bookmark`.
+  - Why: Bases has no native way to filter, group or display rows by bookmark membership. This list makes bookmark-based views possible, with per-bookmark operations on top.
+  - How: use `file.bookmarks` in a Bases formula property. It is registered as an instance function on `FileValue` whose `self` parameter is not optional, so it is read as a property without parentheses: `file.bookmarks`. The list is sorted ascending by escaped path and deduplicated by escaped path; each element displays only its own segment (the bookmark title, or the file name when the bookmark has no title), so a bookmark for `Projects/Obsidian/Bases` displays as `Bases`. A file bookmarked in several groups yields one element per bookmark.
+- Each element is a `Value` of type `bookmark`, which can be isolated and queried on its own.
+  - Why: per-bookmark filtering, grouping and display need access to a single bookmark rather than the whole list.
+  - How: use list operations, for example `file.bookmarks[0]` or `file.bookmarks.map(value.folder())`, then call bookmark methods on the isolated value.
+- `bookmark.path()`, `bookmark.fullPath()` and `bookmark.full_path()` return the full escaped path of the bookmark.
+  - Why: display or filter on the complete location of a bookmark inside the bookmark tree.
+  - How: `file.bookmarks.map(value.path())` or `file.bookmarks[0].path()`. The group titles and the bookmark's own title are joined with `/`; a `/` inside a title is escaped as `//`. A bookmark titled `Bases` inside the group `Obsidian` inside the group `Projects` returns `Projects/Obsidian/Bases`. The three names are aliases and behave identically. A receiver that is not a `bookmark` returns the empty string.
+- `bookmark.folder()`, `bookmark.parent()` and `bookmark.parentFolder()` return the immediate parent segment of the bookmark, or `null` when the bookmark lies outside every group.
+  - Why: group or filter by the immediate container without parsing the full path.
+  - How: `file.bookmarks.map(value.folder())`. The parent title is escaped in the same way as a path segment. Coerce the result with `value.folder() ?? ""` when a string is required. A receiver that is not a `bookmark` returns `null`. The three names are aliases and behave identically.
+- `file.hasBookmarks()` returns a boolean that states whether the current file has at least one bookmark.
+  - Why: filter a view down to bookmarked files without materialising and testing the list.
+  - How: `file.hasBookmarks()` in a formula property or in a Bases filter. It returns `false` when the row's file cannot be resolved or when the Bookmarks core plugin is unavailable.
+- The plugin reads the Bookmarks core plugin's internal bookmark tree and registers into the Bases formula registry.
+  - Why: neither the Bookmarks bookmark tree nor the Bases instance-function registry is part of the public `obsidian.d.ts` typings.
+  - How: enable the **Bookmarks** and **Bases** core plugins in **Settings → Core plugins**. Registration runs when the workspace layout is ready, which is after Bases is available. If the plugin exposes no `registerInstanceFunc`, no formula is registered at all; if a single registration throws, only that function is skipped; if the Bookmarks plugin is missing, every function returns its empty value.
+- Nested bookmark groups are walked recursively, and the titles of every group on the path are collected.
+  - Why: vaults model hierarchies with nested bookmark groups, and a bookmark's location is the full chain of groups above it.
+  - How: nothing to configure. Each group contributes its escaped title to the path; the immediate parent is the last collected group.
+- Only bookmarks whose target is a vault file are considered.
+  - Why: a bookmark that does not target a vault file would otherwise produce a false match.
+  - How: nothing to configure. A bookmark becomes a value only when its `type` is `file` and its `path` equals the current file path.
+- Every returned bookmark renders as a clickable link in the Bases cell, and selecting it locates the bookmark in the **Bookmarks** view.
+  - Why: a bookmark that cannot be acted on is only half useful, and a bookmark nested in a collapsed group is otherwise hard to find. The feedback makes it findable without leaving the tree.
+  - How: select the link. The label is the bookmark's own segment, rendered without underline and without tooltip in `var(--link-color)` (`var(--link-color-hover)` on hover, falling back to the link colour). Selecting it reveals the **Bookmarks** view, opens every collapsed group on the path, scrolls the bookmark into view and flashes it as hovered/selected using the `bookmark-highlight` and `is-active` classes for 2.2 seconds. The Bases cell is not highlighted: `mousedown` and `mouseup` are cancelled and the cell is blurred.
+  - Retries: the Bookmarks view renders asynchronously, so the lookup is retried up to three times at 350 ms (380 ms after expanding a group) before giving up, and any highlight left by an earlier selection is cleared first.
+- Failures are silent: the plugin returns an empty list, `false` or `null` rather than throwing, and writes nothing to the developer console.
+  - Why: the internal structures it depends on vary between Obsidian versions, and a thrown error would break the whole Bases view.
+  - How: nothing to configure. A formula that returns an empty list or `null` in a vault known to have bookmarks indicates that an internal structure is missing.
 
 ## Requirements
 
-- Obsidian 1.13.7 or later (tested on 1.13.7).
-- Node.js 18 or later and npm for development.
-- The Bookmarks and Bases core plugins must be enabled for the formula function to resolve data.
+- Obsidian `1.13.7` or later, as declared by `minAppVersion` in `manifest.json`. Developed and tested against Obsidian 1.13.7.
+- Node.js 18 or later and npm, for development only. The continuous integration workflow builds and lints on Node.js 20.x, 22.x and 24.x.
+- The **Bookmarks** and **Bases** core plugins, both enabled in **Settings → Core plugins**. Without them the plugin registers no formula functions and the formulas return empty values.
 
 ## Setup
 
-1. Install Node.js 18 or later.
-2. Clone the repository.
-3. Install dependencies:
+1. Install Node.js 18 or later. npm is bundled with it.
+2. Clone the repository:
+
+```bash
+git clone https://github.com/LorenBll/Bookmarks-In-Bases.git
+```
+
+3. Install the development dependencies from the repository root:
 
 ```bash
 npm install
 ```
 
-No additional configuration is required.
+No configuration files, environment variables or credentials are required. The plugin has no user-facing settings.
 
 ## Usage
 
-1. Enable the plugin in **Settings → Community plugins** after installing `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/bookmarks-in-bases/`.
-2. Create or open a Bases view.
-3. Add a formula property using `file.bookmarks`. Examples:
+1. Build the plugin and copy `main.js`, `manifest.json` and `styles.css` into `<Vault>/.obsidian/plugins/bookmarks-in-bases/`; see [Build](#build).
+2. Reload Obsidian and enable **Bookmarks-In-Bases** in **Settings → Community plugins**.
+3. Enable the **Bookmarks** and **Bases** core plugins in **Settings → Core plugins**.
+4. Create or open a Bases view and add a formula property, or a filter, that uses the functions below.
+
+Examples:
 
 ```
 file.bookmarks
@@ -76,54 +90,50 @@ file.bookmarks.map(value.path())
 file.bookmarks.map(value.folder())
 file.bookmarks[0].path()
 file.bookmarks[0].folder()
-file.hasBookmarks()
 file.bookmarks.map(value.path()).contains("Projects/Obsidian/Bases")
 ```
 
 Behaviour:
 
-- `file.bookmarks` returns `[]` if the file cannot be resolved, if the Bookmarks plugin is unavailable, or if the file has no file-type bookmarks. Otherwise returns a sorted list of `bookmark` objects; display is the final segment only (e.g. `Bases`), escaped with `//` inside titles.
-- `file.hasBookmarks()` returns `true` if the file has at least one bookmark, `false` otherwise (boolean, not list).
-- `bookmark.path()` / `bookmark.fullPath()` returns the full escaped path including the final bookmark title (e.g. `Projects/Obsidian/Bases`). Joined with `/` without spaces.
-- `bookmark.folder()` / `bookmark.parent()` returns the immediate parent folder (single escaped segment) or `null` if the bookmark is at the root (no folder above it). Use `value.folder() ?? ""` to coerce to string.
-- Click any bookmark item to reveal the **Bookmarks** view; if the bookmark is inside a closed bookmark folder (group) that is collapsed, the folder (and any nested parent folders) is opened first, then the bookmark is scrolled into view and flash-highlighted as `is-active`/`bookmark-highlight` (hover/selected look, cleared after 2.2 s). The Bases cell is not highlighted, and links have no underline or tooltip.
+- `file.bookmarks` returns an empty list when the row's file cannot be resolved, when the Bookmarks core plugin is unavailable, or when the file has no file-type bookmarks. Otherwise it returns the bookmarks of that file, sorted ascending by escaped path and deduplicated by escaped path.
+- `file.hasBookmarks()` returns `true` when the file has at least one bookmark and `false` otherwise.
+- `bookmark.path()`, `bookmark.fullPath()` and `bookmark.full_path()` return the full escaped path, including the bookmark's own title.
+- `bookmark.folder()`, `bookmark.parent()` and `bookmark.parentFolder()` return the immediate parent segment, or `null` when the bookmark is not inside a group.
+- Selecting a rendered bookmark reveals the **Bookmarks** view, opens the collapsed groups on its path, scrolls it into view and flashes it for 2.2 seconds. The Bases cell is not highlighted, and the link carries no underline and no tooltip.
 
 Limitations:
 
-- Accesses internal Bookmarks/Bases data structures. A future Obsidian update may change these structures; the plugin returns `[]` or `null` if the structure is not found.
+- The plugin reads internal, undocumented Bookmarks and Bases structures: `app.internalPlugins.getPluginById("bookmarks")`, the `items`/`_items` bookmark tree, and the Bases `registerInstanceFunc` registry. An Obsidian update may change them, in which case the plugin registers nothing or returns empty values instead of failing.
+- Values are deduplicated by escaped path, so two bookmarks that share the same group chain and the same title collapse into a single entry.
+- The Bookmarks view exposes no stable per-item attribute. Highlighting therefore also falls back to matching the visible text, and may select the first match when several bookmarks share a title in the same group.
 
 ## Build
 
-Compile the plugin from `src/main.ts` to `main.js`:
+The build compiles `src/main.ts` into the bundled `main.js` at the repository root:
 
 ```bash
-npm run dev      # watch mode, inline sourcemap
-npm run build    # production build, minified, no sourcemap
-```
-
-Run the linter:
-
-```bash
-npm run lint
+npm run dev      # watch mode, inline sourcemap, no minification
+npm run build    # type-check with tsc, then a minified bundle without a sourcemap
+npm run lint     # ESLint, using eslint-plugin-obsidianmd
 ```
 
 Manual install for testing:
 
 1. Run `npm run build`.
-2. Copy `main.js`, `manifest.json`, and `styles.css` (if present) to `<Vault>/.obsidian/plugins/bookmarks-in-bases/`.
+2. Copy `main.js`, `manifest.json` and `styles.css` into `<Vault>/.obsidian/plugins/bookmarks-in-bases/`.
 3. Reload Obsidian and enable **Bookmarks-In-Bases** in **Settings → Community plugins**.
 
-Versioning: update `version` in `manifest.json` and `package.json`, then run `npm version patch|minor|major` to update `versions.json`.
+Versioning: run `npm version patch|minor|major`. The `version` script then runs `version-bump.mjs`, which copies the new version into `manifest.json` and adds the version mapped to the current `minAppVersion` in `versions.json`. `.npmrc` sets `tag-version-prefix=""`, so the resulting git tag has no leading `v` and matches `manifest.json`. `main.js` is generated, is not committed, and is attached to the GitHub release instead.
 
 ## Configuration
 
-This plugin exposes no user-facing settings. There are no configuration keys, no settings tab, and no persisted data. Behaviour is fully determined by the current file and the vault's bookmark tree.
+The plugin exposes no user-facing settings. There is no settings tab, no configuration key, and no persisted data: the plugin calls neither `loadData` nor `saveData`, and writes no `data.json`. Behaviour is determined entirely by the current file and the vault's bookmark tree.
 
 ## Compatibility
 
-- `minAppVersion` is `1.13.7` as declared in `manifest.json`.
+- `minAppVersion` is `1.13.7`, as declared in `manifest.json`.
 - Developed and tested against Obsidian 1.13.7.
-- `isDesktopOnly` is `false`; the plugin does not use desktop-only APIs.
+- `isDesktopOnly` is `false`. The plugin uses no desktop-only or Node.js API; it relies on DOM APIs that are present in the mobile app.
 
 ## Licence
 

@@ -173,12 +173,19 @@ function walkBookmarkTreeForValues(
 				typeof bookmark.title === "string" && bookmark.title.length > 0
 					? bookmark.title
 					: (filePath.split("/").pop() ?? filePath);
-			const escapedGroups = groupPath.map((s) => s.replaceAll("/", "//"));
-			const escapedTitle = rawTitle.replaceAll("/", "//");
-			const fullPath = escapedGroups.length > 0 ? escapedGroups.join("/") + "/" + escapedTitle : escapedTitle;
-			const folder = escapedGroups.length > 0 ? (escapedGroups[escapedGroups.length - 1] ?? null) : null;
-			const finalTitle = escapedTitle;
+			const { fullPath, folder, finalTitle } = buildBookmarkPath(groupPath, rawTitle);
 			results.push(new BookmarkValue(file, fullPath, folder, finalTitle, highlighter));
 		}
 	}
+}
+/**
+ * Build the escaped bookmark path components from a group path and raw title.
+ * Pure helper, exported for testing.
+ */
+export function buildBookmarkPath(groupPath: string[], rawTitle: string): { fullPath: string; folder: string | null; finalTitle: string } {
+	const escapedGroups = groupPath.map((s) => s.replaceAll("/", "//"));
+	const escapedTitle = rawTitle.replaceAll("/", "//");
+	const fullPath = escapedGroups.length > 0 ? escapedGroups.join("/") + "/" + escapedTitle : escapedTitle;
+	const folder = escapedGroups.length > 0 ? (escapedGroups[escapedGroups.length - 1] ?? null) : null;
+	return { fullPath, folder, finalTitle: escapedTitle };
 }

@@ -139,7 +139,7 @@ The plugin exposes no user-facing settings. There is no settings tab, no configu
 
 0BSD. See [LICENSE](LICENSE).
 
-Copyright (C) 2020-2026 by Dynalist Inc.
+Copyright (C) 2026 by LorenBll.
 
 ## Support
 
